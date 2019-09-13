@@ -9,19 +9,31 @@ const scrape = (retrieveSource, parse, persist) => () =>
     .then(parse)
     .then(persist)
 
+const tap = val => {
+    console.log(val)
+    return val;
+}
+const pipeAsync = (...fns) => x => fns.reduce(async (prev, f) =>  f(await prev),  x);
+const map = fn => ar => ar.map(fn);
+const filter = pred => ar => ar.filter(pred);
 const logConsole = console.log
 const ignore = _ => {}
 const writeToJson = fileName => data => fs.writeFileSync(fileName, JSON.stringify(data, null, 2))
 
 // endpoints
-const mainPage = 'https://store.playstation.com/en-no/home/games';
+const makeUrl = relative => 'https://store.playstation.com' + relative;
+const mainPage = makeUrl('/en-no/home/games')
 
 // parses
-const retrievePlatforms = src => 
-    Array.from(cheerio.load(src)('ul:nth-of-type(2)').children('a'))
-    .map(x => x.firstChild.data)
+const parsePlatforms = src =>  {
+    const $ = cheerio.load(src);
+    return Array.from(cheerio.load(src)('ul:nth-of-type(2)').children('a')).map(el => ({
+        platform: $(el).text(),
+        link: $(el).attr('href')
+    }))
+}
 
-const retrievePlatformAndPrice = src => {
+const parseGameAndPrice = src => {
     const $ = cheerio.load(src);
     return Array.from($('.grid-cell__body')).map(el => ({
         title: $(el).find('.grid-cell__title > span').attr('title'),
@@ -30,17 +42,29 @@ const retrievePlatformAndPrice = src => {
 }
 
 // scrapes
-const getPlatforms = scrape(
+const getPlatformsFromMain = pipeAsync(
     getSourceAsText(mainPage),
-    retrievePlatforms,
-    writeToJson('platforms2.json')
+    parsePlatforms,
+    tap
 )
 
-const getTitlesAndPrices = scrape(
-    getSourceAsText('https://store.playstation.com/en-no/grid/STORE-MSF75508-PS4CAT/1'),
-    retrievePlatformAndPrice,
-    writeToJson('ps4games.json')
+const getTitlesAndPrices = url => pipeAsync(
+    getSourceAsText(url),
+    parseGameAndPrice,
+    tap,
 )
 
+const scrapeAllFirstPages = pipeAsync(
+    getPlatformsFromMain,
+    platforms => Promise.all(
+        platforms
+        .map(({platform, link}) => 
+            getTitlesAndPrices(makeUrl(link))()
+            .then(ret => ({[platform]: ret}))
+        )
+    ),
+    tap,
+    writeToJson('firstPageAllPlatforms.json')
+)
 
-getTitlesAndPrices()
+scrapeAllFirstPages()

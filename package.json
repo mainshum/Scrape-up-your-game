@@ -1,0 +1,14 @@
+{
+  "name": "Scrape-up-your-game",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node scrape.js"
+  },
+  "repository": "https://github.com/Pasato/Scrape-up-your-game.git",
+  "license": "MIT",
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.3",
+    "node-fetch": "^2.6.0"
+  }
+}
